@@ -84,6 +84,7 @@ uint32_t Adafruit_TinyFlash::begin(void) {
 	SPI.begin();
 	// Resistor-based 5V->3.3V logic conversion is a little sloppy, so:
 	SPI.beginTransaction(SPISettings(SPI_CLOCK_DIV8, MSBFIRST, SPI_MODE3)); // 500 KHz
+	//SPI.beginTransaction(SPISettings(SPI_CLOCK_DIV2, MSBFIRST, SPI_MODE3));
 #endif
 
 	cmd(CMD_ID);
@@ -93,6 +94,14 @@ uint32_t Adafruit_TinyFlash::begin(void) {
 
 	// Chip capacity is hardcoded for now
 	return ((manID == 0xEF) && (devID == 0x13)) ? CHIP_BYTES : 0L;
+}
+
+void Adafruit_TinyFlash::end(void) {
+	CHIP_DESELECT
+#ifndef __AVR_ATtiny85__
+	SPI.endTransaction();
+	SPI.end();
+#endif
 }
 
 // Poll status register until busy flag is clear or timeout occurs

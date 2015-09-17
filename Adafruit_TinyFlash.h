@@ -17,6 +17,7 @@ class Adafruit_TinyFlash {
                     eraseSector(uint32_t addr);
   uint8_t           readNextByte(void);
   void              endRead(void);
+  void              end(void);
  private:
   boolean           waitForReady(uint32_t timeout = 100L),
                     writeEnable(void);

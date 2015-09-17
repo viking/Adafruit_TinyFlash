@@ -83,7 +83,7 @@ uint32_t Adafruit_TinyFlash::begin(void) {
 #else
 	SPI.begin();
 	// Resistor-based 5V->3.3V logic conversion is a little sloppy, so:
-	SPI.setClockDivider(SPI_CLOCK_DIV8); // 500 KHz
+	SPI.beginTransaction(SPISettings(SPI_CLOCK_DIV8, MSBFIRST, SPI_MODE3)); // 500 KHz
 #endif
 
 	cmd(CMD_ID);

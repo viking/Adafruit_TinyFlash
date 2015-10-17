@@ -1,6 +1,13 @@
 // Winbond serial flash loader.  Runs on normal Arduino (e.g. Uno,
 // NOT Trinket), works with 'AudioXfer' Processing code on host PC.
 
+// Orange: 13
+// Green: 12
+// Red: 11
+// Yellow: 10
+// Blue: 3.3v
+// White: GND
+
 #include <Adafruit_TinyFlash.h>
 #include <SPI.h>
 

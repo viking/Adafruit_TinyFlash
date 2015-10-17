@@ -10,21 +10,48 @@
 #error "Compile for 8 MHz Trinket"
 #endif
 
+#define NUM_SOUNDS 3
+
 Adafruit_TinyFlash flash;
+uint8_t            which, data[256];
 uint16_t           sample_rate, delay_count;
-uint32_t           samples;
+uint32_t           samples, address;
 volatile uint32_t  index = 0L;
 
+void error() {
+  for(;; PORTB ^= 2, delay(250));  // Blink 2x/sec
+};
+
 void setup() {
-  uint8_t  data[6];
+  uint8_t  data[6], buf[256];
   uint32_t bytes;
 
   if(!(bytes = flash.begin())) {     // Flash init error?
-    for(;; PORTB ^= 2, delay(250));  // Blink 2x/sec
+    error();
   }
 
+  // Get next sound
+  address = bytes - 4096;
+  if (!flash.beginRead(address)) {
+    error();
+  }
+  which = flash.readNextByte() % NUM_SOUNDS;
+  flash.endRead();
+
+  // Save next sound, but have to erase first
+  if (!flash.eraseSector(address)) {
+    error();
+  }
+  
+  buf[0] = (which + 1) % NUM_SOUNDS;
+  if (!flash.writePage(address, buf)) {
+    error();
+  }
+  
   // First six bytes contain sample rate, number of samples
-  flash.beginRead(0);
+  if (!flash.beginRead(0)) {
+    error();
+  }
   for(uint8_t i=0; i<6; i++) data[i] = flash.readNextByte();
   sample_rate = ((uint16_t)data[0] <<  8)
               |  (uint16_t)data[1];
@@ -32,8 +59,16 @@ void setup() {
               | ((uint32_t)data[3] << 16)
               | ((uint32_t)data[4] <<  8)
               |  (uint32_t)data[5];
-  // Audio begins at next byte, so DON'T endRead() here
+  flash.endRead();
 
+  samples = samples / NUM_SOUNDS;
+
+  // Select sound position
+  address = (which * samples) + 6;
+  if (!flash.beginRead(address)) {
+    error();
+  }
+  
   PLLCSR |= _BV(PLLE);               // Enable 64 MHz PLL
   delayMicroseconds(100);            // Stabilize
   while(!(PLLCSR & _BV(PLOCK)));     // Wait for it...
@@ -44,7 +79,7 @@ void setup() {
   TCCR1  = _BV(CS10);                // 1:1 prescale
   GTCCR  = _BV(PWM1B) | _BV(COM1B1); // PWM B, clear on match
   OCR1C  = 255;                      // Full 8-bit PWM cycle
-  OCR1B  = 127;                      // 50% duty at start
+  OCR1B  = 0;                        // 50% duty at start
 
   pinMode(4, OUTPUT);                // Enable PWM output pin
 
@@ -57,7 +92,7 @@ void setup() {
   // Timer resolution is limited to either 0.125 or 1.0 uS,
   // so it's rare that the playback rate will precisely match
   // the data, but the difference is usually imperceptible.
-  TCCR0A = _BV(WGM01) | _BV(WGM00);  // Mode 7 (fast PWM)
+  TCCR0A = _BV(WGM01) | _BV(WGM00);  // Mode 7 (fast PWM), F_CPU speed / 256
   if(sample_rate >= 31250) {
     TCCR0B = _BV(WGM02) | _BV(CS00); // 1:1 prescale
     OCR0A  = ((F_CPU + (sample_rate / 2)) / sample_rate) - 1;
@@ -71,11 +106,12 @@ void setup() {
 void loop() { }
 
 ISR(TIMER0_COMPA_vect) {
-  OCR1B = flash.readNextByte();      // Read flash, write PWM reg.
-  if(++index >= samples) {           // End of audio data?
-    index = 0;                       // We must repeat!
+  if (index++ < samples) {
+    OCR1B = flash.readNextByte();      // Read flash, write PWM reg.
+  } else {
+    TCCR0B = 0;
+    OCR1B = 0;
     flash.endRead();
-    flash.beginRead(6);              // Skip 6 byte header
   }
 }
 
